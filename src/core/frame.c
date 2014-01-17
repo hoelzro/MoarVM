@@ -209,6 +209,7 @@ void MVM_frame_invoke(MVMThreadContext *tc, MVMStaticFrame *static_frame,
     }
     else if (static_frame_body->outer) {
         frame->outer = autoclose(tc, static_frame_body->outer);
+        static_frame_body->static_code->body.outer = MVM_frame_inc_ref(tc, frame->outer);
     }
     else {
         frame->outer = NULL;
