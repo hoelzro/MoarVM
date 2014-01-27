@@ -6,7 +6,7 @@ struct MVMP6smallbigintBody {
     MVMuint32 pad3;
 #endif
     MVMint32 storage;
-    mp_digit *flag; // this flag has to be 1, so not a valid pointer!
+    long flag; // this flag has to be 1, so not a valid pointer!
 };
 
 /* Representation used by P6 Ints. */
