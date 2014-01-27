@@ -3,6 +3,9 @@
 /* This representation's function pointer table. */
 static const MVMREPROps this_repr;
 
+/* Magnitude to compare against if we want to turn a bigint into a smallbigint. */
+static mp_int mag_32bit_limit;
+
 /* Creates a new type object of this representation, and associates it with
  * the given HOW. */
 static MVMObject * type_object_for(MVMThreadContext *tc, MVMObject *HOW) {
@@ -25,8 +28,8 @@ static MVMObject * allocate(MVMThreadContext *tc, MVMSTable *st) {
 /* Initializes a new instance. */
 static void initialize(MVMThreadContext *tc, MVMSTable *st, MVMObject *root, void *data) {
     MVMP6bigintBody *body = (MVMP6bigintBody *)data;
-    mp_init(&body->i);
-    mp_zero(&body->i);
+    body->smallbig.flag = p6smallbigintflag;
+    body->smallbig.storage = 0;
 }
 
 /* Copies the body of one object to another. */
@@ -36,27 +39,72 @@ static void copy_to(MVMThreadContext *tc, MVMSTable *st, void *src, MVMObject *d
     mp_init_copy(&dest_body->i, &src_body->i);
 }
 
+/* Forces a bigint to actually be a bigint, rather than a smallbigint. */
+static inline void force_bigint(void *data) {
+    mp_int *i = &((MVMP6bigintBody *)data)->i;
+    MVMP6smallbigintBody *b = &((MVMP6bigintBody *)data)->smallbig;
+    if (b->flag == p6smallbigintflag) {
+        MVMint64 value = b->storage;
+        mp_init(i);
+        mp_zero(i);
+        if (value >= 0) {
+            mp_set_long(i, value);
+        } else {
+            mp_set_long(i, -value);
+            mp_neg(i, i);
+        }
+    }
+}
+
+static inline void make_smallbigint(void *data) {
+    mp_int *i = &((MVMP6bigintBody *)data)->i;
+    MVMP6smallbigintBody *b = &((MVMP6bigintBody *)data)->smallbig;
+    MVMint64 value;
+
+    if (b->flag != p6smallbigintflag) {
+        if (MP_LT == mp_cmp_d(i, 0)) {
+            mp_neg(i, i);
+        }
+        value = mp_get_long(i);
+        mp_clear(i);
+        b->flag = p6smallbigintflag;
+        b->storage = value;
+    }
+}
+
 static void set_int(MVMThreadContext *tc, MVMSTable *st, MVMObject *root, void *data, MVMint64 value) {
     mp_int *i = &((MVMP6bigintBody *)data)->i;
-    if (value >= 0) {
-        mp_set_long(i, value);
-    }
-    else {
-        mp_set_long(i, -value);
-        mp_neg(i, i);
+    MVMP6smallbigintBody *b = &((MVMP6bigintBody *)data)->smallbig;
+
+    if (value < -0xffffffff || value > 0x7fffffff) {
+        if (b->flag != p6smallbigintflag) {
+            mp_clear(i);
+            b->flag = p6smallbigintflag;
+        }
+        b->storage = value;
+    } else {
+        if (b->flag == p6smallbigintflag) {
+            b->storage = value;
+            force_bigint(data);
+        }
     }
 }
 static MVMint64 get_int(MVMThreadContext *tc, MVMSTable *st, MVMObject *root, void *data) {
     MVMint64 ret;
     mp_int *i = &((MVMP6bigintBody *)data)->i;
-    if (MP_LT == mp_cmp_d(i, 0)) {
-        mp_neg(i, i);
-        ret = mp_get_long(i);
-        mp_neg(i, i);
-        return -ret;
-    }
-    else {
-        return mp_get_long(i);
+    MVMP6smallbigintBody *b = &((MVMP6bigintBody *)data)->smallbig;
+    if (b->flag == p6smallbigintflag) {
+        return b->storage;
+    } else {
+        if (MP_LT == mp_cmp_d(i, 0)) {
+            mp_neg(i, i);
+            ret = mp_get_long(i);
+            mp_neg(i, i);
+            return -ret;
+        }
+        else {
+            return mp_get_long(i);
+        }
     }
 }
 
@@ -80,19 +128,27 @@ static MVMStorageSpec get_storage_spec(MVMThreadContext *tc, MVMSTable *st) {
 
 /* Compose the representation. */
 static void compose(MVMThreadContext *tc, MVMSTable *st, MVMObject *info) {
-    /* Nothing to do for this REPR. */
+    mp_init(&mag_32bit_limit);
+    mp_set_int(&mag_32bit_limit, 0x7fffffff);
 }
 
 static void gc_cleanup(MVMThreadContext *tc, MVMSTable *st, void *data) {
-    mp_clear(&((MVMP6bigintBody *)data)->i);
+    MVMP6smallbigintBody *b = &((MVMP6bigintBody *)data)->smallbig;
+    if(b->flag != p6smallbigintflag) {
+        mp_clear(&((MVMP6bigintBody *)data)->i);
+    }
 }
 
 static void gc_free(MVMThreadContext *tc, MVMObject *obj) {
-    mp_clear(&((MVMP6bigint *)obj)->body.i);
+    MVMP6smallbigintBody *b = &((MVMP6bigintBody *)obj)->smallbig;
+    if(b->flag != p6smallbigintflag) {
+        mp_clear(&((MVMP6bigintBody *)obj)->i);
+    }
 }
 
 /* Serializes the bigint. */
 static void serialize(MVMThreadContext *tc, MVMSTable *st, void *data, MVMSerializationWriter *writer) {
+    force_bigint(data);
     mp_int *i = &((MVMP6bigintBody *)data)->i;
     int len;
     char *buf;
@@ -120,6 +176,9 @@ static void deserialize(MVMThreadContext *tc, MVMSTable *st, MVMObject *root, vo
     const char *buf = MVM_string_ascii_encode(tc, reader->read_str(tc, reader), &output_size);
     mp_init(&body->i);
     mp_read_radix(&body->i, buf, 10);
+    if (mp_cmp_mag(&body->i, &mag_32bit_limit) == MP_LT) {
+        make_smallbigint(data);
+    }
 }
 
 /* Initializes the representation. */
