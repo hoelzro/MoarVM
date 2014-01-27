@@ -9,20 +9,18 @@ struct MVMP6smallbigintBody {
     mp_digit *flag; // this flag has to be 1, so not a valid pointer!
 };
 
-#define p6smallbigintflag ((mp_digit*)1)
-
 /* Representation used by P6 Ints. */
 struct MVMP6bigintBody {
-    union {
-        /* Big integer storage slot. */
-        mp_int i;
-        /* Alternatively, we cheat if 32bit are enough */
-        MVMP6smallbigintBody smallbig;
-    };
+    /* Big integer storage slot. */
+    mp_int i;
 };
 struct MVMP6bigint {
     MVMObject common;
-    MVMP6bigintBody body;
+    union {
+        MVMP6bigintBody body;
+        /* Alternatively, we cheat if 32bit are enough */
+        MVMP6smallbigintBody smallbig;
+    };
 };
 
 /* Function for REPR setup. */
