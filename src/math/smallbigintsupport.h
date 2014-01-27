@@ -3,9 +3,9 @@
 #define STORE_SBI(a, value) (((MVMP6smallbigintBody *)a)->storage = value)
 #define VALUE_SBI(a) (((MVMP6smallbigintBody *)a)->storage)
 
-inline void force_bigint(void *data);
-inline void force_smallbigint(void *data);
-inline int check_can_be_small(void *data);
+inline MVMP6bigint *obtain_bigint(MVMObject *data);
+inline MVMP6bigint *force_smallbigint(MVMObject *data);
+inline int check_can_be_small(MVMP6bigint *data);
 inline int make_compatible(void *a, void *b);
 
 void setup_smallbigint();

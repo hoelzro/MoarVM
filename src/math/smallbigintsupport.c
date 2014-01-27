@@ -5,10 +5,10 @@
 static mp_int mag_32bit_limit;
 
 /* Forces a bigint to actually be a bigint, rather than a smallbigint. */
-inline void force_bigint(void *data) {
-    mp_int *i = &((MVMP6bigintBody *)data)->i;
+inline MVMP6bigint *obtain_bigint(MVMObject *data) {
+    mp_int *i = &((MVMP6bigint *)data)->body.i;
     if (IS_SBI(data)) {
-        printf("making a big integer in force_bigint: %d\n", VALUE_SBI(data));
+        printf("making a big integer in obtain_bigint: %d\n", VALUE_SBI(data));
         MVMint64 value = VALUE_SBI(data);
         mp_init(i);
         mp_zero(i);
@@ -24,8 +24,8 @@ inline void force_bigint(void *data) {
 }
 
 /* Turns a bigint into a smallbigint (without checking!) */
-inline void force_smallbigint(void *data) {
-    mp_int *i = &((MVMP6bigintBody *)data)->i;
+inline MVMP6bigint *force_smallbigint(MVMObject *data) {
+    mp_int *i = &((MVMP6bigint*)data)->body.i;
     MVMint64 value;
 
     if (!IS_SBI(data)) {
@@ -39,12 +39,12 @@ inline void force_smallbigint(void *data) {
         STORE_SBI(data, value);
     }
 }
-inline int check_can_be_small(void *data) {
+inline int check_can_be_small(MVMObject *data) {
     MVMP6bigintBody *body = &((MVMP6bigint *)data)->body;
     return mp_cmp_mag(&body->i, &mag_32bit_limit) == MP_LT;
 }
 
-inline int make_compatible(void *a, void *b) {
+inline int make_compatible(MVMObject **a, MVMObject **b) {
     if (!!IS_SBI(a) == !!IS_SBI(b)) {
         return IS_SBI(a);
     } else {
