@@ -51,8 +51,14 @@ static void set_int(MVMThreadContext *tc, MVMSTable *st, MVMObject *root, void *
         STORE_SBI(data, value);
     } else {
         if (IS_SBI(data)) {
-            STORE_SBI(data, value);
-            force_bigint(data);
+            mp_init(i);
+            mp_zero(i);
+            if (value >= 0) {
+                mp_set_long(i, value);
+            } else {
+                mp_set_long(i, -value);
+                mp_neg(i, i);
+            }
         }
     }
 }
@@ -112,8 +118,7 @@ static void gc_free(MVMThreadContext *tc, MVMObject *obj) {
 
 /* Serializes the bigint. */
 static void serialize(MVMThreadContext *tc, MVMSTable *st, void *data, MVMSerializationWriter *writer) {
-    force_bigint(data);
-    mp_int *i = &((MVMP6bigintBody *)data)->i;
+    OBTAIN_BIN((MVMP6smallbigintBody *)data, i);
     int len;
     char *buf;
     MVMString *str;
@@ -126,6 +131,7 @@ static void serialize(MVMThreadContext *tc, MVMSTable *st, void *data, MVMSerial
 
     writer->write_str(tc, writer, str);
     free(buf);
+    CLEANUP_BIN((MVMP6smallbigintBody *)data, i);
 }
 
 /* Set the size on the STable. */
