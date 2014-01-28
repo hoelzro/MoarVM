@@ -446,8 +446,8 @@ MVMObject * MVM_bigint_radix(MVMThreadContext *tc, MVMint64 radix, MVMString *st
     base_obj = MVM_repr_alloc_init(tc, type);
     MVM_repr_push_o(tc, result, base_obj);
 
-    value = get_bigint(tc, value_obj);
-    base = get_bigint(tc, base_obj);
+    value = obtain_bigint(value_obj);
+    base = obtain_bigint(base_obj);
 
     mp_set_int(base, 1);
 
