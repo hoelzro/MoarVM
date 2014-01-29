@@ -1,7 +1,7 @@
 #include "moar.h"
 #include <math.h>
 
-#include "smallbigintsupport.h"
+#include "littlebigintsupport.h"
 
 static MVMnum64 mp_get_double(mp_int *a) {
     MVMnum64 d    = 0.0;

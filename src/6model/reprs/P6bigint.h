@@ -1,18 +1,5 @@
 #include "tommath.h"
 
-struct MVMP6smallbigintBody {
-    MVMint32 storage;
-#if !defined(_M_X64) && !defined(__amd64__)
-    MVMuint32 pad3;
-#endif
-    int pad1, pad2;
-#if !defined(_M_X64) && !defined(__amd64__)
-    int flag; // this flag has to be 1, so not a valid pointer!
-#else
-    long flag;
-#endif
-};
-
 /* Representation used by P6 Ints. */
 struct MVMP6bigintBody {
     /* Big integer storage slot. */
@@ -20,11 +7,7 @@ struct MVMP6bigintBody {
 };
 struct MVMP6bigint {
     MVMObject common;
-    union {
-        MVMP6bigintBody body;
-        /* Alternatively, we cheat if 32bit are enough */
-        MVMP6smallbigintBody smallbig;
-    };
+    MVMP6bigintBody body;
 };
 
 /* Function for REPR setup. */

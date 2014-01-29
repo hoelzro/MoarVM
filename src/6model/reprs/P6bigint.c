@@ -1,5 +1,5 @@
 #include "moar.h"
-#include "../../math/smallbigintsupport.h"
+#include "../../math/littlebigintsupport.h"
 
 /* This representation's function pointer table. */
 static const MVMREPROps this_repr;
@@ -42,12 +42,16 @@ static void copy_to(MVMThreadContext *tc, MVMSTable *st, void *src, MVMObject *d
 static void set_int(MVMThreadContext *tc, MVMSTable *st, MVMObject *root, void *data, MVMint64 value) {
     mp_int *i = &((MVMP6bigintBody *)data)->i;
 
-    if (value < -0xffffffff || value > 0x7fffffff) {
-        printf("making a smallbigint in set_int: %d\n", value);
+    if (0 && (value < -0xffffffff || value > 0x7fffffff)) {
+        printf("making a littlebigint in set_int: %d\n", value);
         if (!IS_SBI(data)) {
             mp_clear(i);
             MAKE_SBI(data);
         }
+        MVMP6bigintBody *body = ((MVMP6bigintBody *)data);
+        body->i.sign = 0;
+        body->i.used = 0;
+        body->i.alloc = 0;
         STORE_SBI(data, value);
     } else {
         if (IS_SBI(data)) {
@@ -101,7 +105,7 @@ static MVMStorageSpec get_storage_spec(MVMThreadContext *tc, MVMSTable *st) {
 
 /* Compose the representation. */
 static void compose(MVMThreadContext *tc, MVMSTable *st, MVMObject *info) {
-    setup_smallbigint();
+    setup_littlebigint();
 }
 
 static void gc_cleanup(MVMThreadContext *tc, MVMSTable *st, void *data) {
@@ -118,7 +122,7 @@ static void gc_free(MVMThreadContext *tc, MVMObject *obj) {
 
 /* Serializes the bigint. */
 static void serialize(MVMThreadContext *tc, MVMSTable *st, void *data, MVMSerializationWriter *writer) {
-    OBTAIN_BIN((MVMP6smallbigintBody *)data, i);
+    OBTAIN_BIN((MVMP6littlebigintBody *)data, i);
     int len;
     char *buf;
     MVMString *str;
@@ -131,7 +135,7 @@ static void serialize(MVMThreadContext *tc, MVMSTable *st, void *data, MVMSerial
 
     writer->write_str(tc, writer, str);
     free(buf);
-    CLEANUP_BIN((MVMP6smallbigintBody *)data, i);
+    CLEANUP_BIN((MVMP6littlebigintBody *)data, i);
 }
 
 /* Set the size on the STable. */
@@ -147,7 +151,7 @@ static void deserialize(MVMThreadContext *tc, MVMSTable *st, MVMObject *root, vo
     mp_init(&body->i);
     mp_read_radix(&body->i, buf, 10);
     /*if (IS_SBI(data)) {*/
-        /*force_smallbigint(data);*/
+        /*force_littlebigint(data);*/
     /*}*/
 }
 
