@@ -33,7 +33,7 @@ static void verify_filehandle_type(MVMThreadContext *tc, MVMObject *oshandle, MV
         MVM_exception_throw_adhoc(tc, "%s requires an object with REPR MVMOSHandle", msg);
     }
     *handle = (MVMOSHandle *)oshandle;
-    if ((*handle)->body.type != MVM_OSHANDLE_FD && (*handle)->body.type != MVM_OSHANDLE_HANDLE) {
+    if ((*handle)->body.type != MVM_OSHANDLE_FD && (*handle)->body.type != MVM_OSHANDLE_PIPE && (*handle)->body.type != MVM_OSHANDLE_HANDLE) {
         MVM_exception_throw_adhoc(tc, "%s requires an MVMOSHandle of type file handle", msg);
     }
 }
@@ -282,8 +282,14 @@ void MVM_file_close_fh(MVMThreadContext *tc, MVMObject *oshandle) {
 
     MVM_checked_free_null(handle->body.filename);
 
-    if (uv_fs_close(tc->loop, &req, handle->body.u.fd, NULL) < 0) {
-        MVM_exception_throw_adhoc(tc, "Failed to close filehandle: %s", uv_strerror(req.result));
+    if (handle->body.type == MVM_OSHANDLE_PIPE) {
+        if (close(handle->body.u.fd) < 0) {
+            //MVM_exception_throw_adhoc(tc, "Failed to close pipe: %d", errno);
+        }
+    } else {
+        if (uv_fs_close(tc->loop, &req, handle->body.u.fd, NULL) < 0) {
+            MVM_exception_throw_adhoc(tc, "Failed to close filehandle: %s", uv_strerror(req.result));
+        }
     }
 }
 
@@ -1041,4 +1047,76 @@ MVMString * MVM_file_in_libpath(MVMThreadContext *tc, MVMString *orig) {
         MVM_gc_root_temp_pop(tc); /* orig */
         return orig;
     }
+}
+
+static void handle_pipe_child_exit(uv_process_t *req, int64_t status, int signal) {
+    uv_close((uv_handle_t *) req, NULL);
+}
+
+/* Takes a command, a directory, an environment, and an error path, opens a
+ * pipe that is linked to the subprocess' STDOUT, and returns it. */
+MVMObject * MVM_file_openpipe(MVMThreadContext *tc, MVMString *command, MVMString *dir, MVMObject *env, MVMString *err_path) {
+    // TODO err_path NYI
+    MVMObject * const type_object = tc->instance->boot_types.BOOTIO;
+    MVMOSHandle *result = (MVMOSHandle *)REPR(type_object)->allocate(tc, STABLE(type_object));
+
+#ifdef _WIN32
+    MVM_exception_throw_adhoc(tc, "openpipe is NYI on Windows");
+#endif
+
+    int status;
+    uv_process_t child_req;
+    uv_process_options_t options;
+    char *args[4] = { "sh", "-c", NULL, NULL };
+    uv_stdio_container_t stdio_containers[3];
+    int pipes[2];
+
+    status = pipe(pipes);
+
+    if (status) {
+        MVM_exception_throw_adhoc(tc, "Failed to open pipe: %d", errno);
+    }
+
+    char * const cmd      = MVM_string_utf8_encode_C_string(tc, command);
+    char * const dir_name = MVM_string_utf8_encode_C_string(tc, dir);
+
+    memset(&options, 0, sizeof(options));
+    args[2] = cmd;
+
+    options.exit_cb     = handle_pipe_child_exit;
+    options.file        = "sh";
+    options.args        = args;
+    options.cwd         = dir_name;
+    options.flags       = UV_PROCESS_WINDOWS_HIDE;
+    options.stdio       = stdio_containers;
+    options.stdio_count = sizeof(stdio_containers)/sizeof(stdio_containers[0]);
+
+    stdio_containers[0].flags = UV_INHERIT_FD;
+    stdio_containers[1].flags = UV_INHERIT_FD;
+    stdio_containers[2].flags = UV_INHERIT_FD;
+
+    stdio_containers[0].data.fd = 0;
+    stdio_containers[1].data.fd = pipes[1];
+    stdio_containers[2].data.fd = 2;
+
+    // XXX set env
+
+    status = uv_spawn(tc->loop, &child_req, &options);
+
+    close(pipes[1]);
+    free(cmd);
+    free(dir_name);
+
+    if (status) {
+        MVM_exception_throw_adhoc(tc, "Failed to open pipe: %s", uv_strerror(status));
+    }
+
+    result->body.filename      = strdup("<pipe>"); // FIXME
+    result->body.u.fd          = pipes[0];
+    result->body.type          = MVM_OSHANDLE_PIPE;
+    result->body.encoding_type = MVM_encoding_type_utf8;
+
+    fprintf(stderr, "created pipe %d\n", result->body.u.fd);
+
+    return (MVMObject *) result;
 }

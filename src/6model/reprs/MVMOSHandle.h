@@ -39,7 +39,8 @@ typedef enum {
    MVM_OSHANDLE_DIR    = 3,
    MVM_OSHANDLE_TCP    = 4,
    MVM_OSHANDLE_UDP    = 5,
-   MVM_OSHANDLE_SOCKET = 6 /* XXX: not need after fully port to libuv */
+   MVM_OSHANDLE_SOCKET = 6,/* XXX: not need after fully port to libuv */
+   MVM_OSHANDLE_PIPE   = 7
 }  MVMOSHandleTypes;
 
 /* Function for REPR setup. */
