@@ -146,9 +146,9 @@ static void deserialize(MVMThreadContext *tc, MVMSTable *st, MVMObject *root, vo
     const char *buf = MVM_string_ascii_encode(tc, reader->read_str(tc, reader), &output_size);
     mp_init(&body->i);
     mp_read_radix(&body->i, buf, 10);
-    if (IS_SBI(data)) {
-        force_smallbigint(data);
-    }
+    /*if (IS_SBI(data)) {*/
+        /*force_smallbigint(data);*/
+    /*}*/
 }
 
 /* Initializes the representation. */

@@ -41,6 +41,9 @@ inline MVMP6bigint *force_smallbigint(MVMObject *data) {
         value = mp_get_long(i);
         printf("making a smallbigint in make_smallbigint: %d\n", value);
         mp_clear(i);
+        i->used = 0;
+        i->alloc = 0;
+        i->sign = 0;
         MAKE_SBI(body);
         STORE_SBI(body, value);
     }

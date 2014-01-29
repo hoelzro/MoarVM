@@ -1,12 +1,16 @@
 #include "tommath.h"
 
 struct MVMP6smallbigintBody {
-    int pad1, pad2;
+    MVMint32 storage;
 #if !defined(_M_X64) && !defined(__amd64__)
     MVMuint32 pad3;
 #endif
-    MVMint32 storage;
-    long flag; // this flag has to be 1, so not a valid pointer!
+    int pad1, pad2;
+#if !defined(_M_X64) && !defined(__amd64__)
+    int flag; // this flag has to be 1, so not a valid pointer!
+#else
+    long flag;
+#endif
 };
 
 /* Representation used by P6 Ints. */
