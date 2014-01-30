@@ -286,6 +286,7 @@ void MVM_file_close_fh(MVMThreadContext *tc, MVMObject *oshandle) {
         if (close(handle->body.u.fd) < 0) {
             //MVM_exception_throw_adhoc(tc, "Failed to close pipe: %d", errno);
         }
+        handle->body.u.fd = -1;
     } else {
         if (uv_fs_close(tc->loop, &req, handle->body.u.fd, NULL) < 0) {
             MVM_exception_throw_adhoc(tc, "Failed to close filehandle: %s", uv_strerror(req.result));
